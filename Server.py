@@ -1,6 +1,8 @@
 from socket import *
 from threading import Thread
 import secure_crypto as crypto
+from socket import socket, AF_INET, SOCK_STREAM
+
 
 client_sock = []
 public_keys = []
@@ -11,7 +13,7 @@ BUFFER_SIZE = 4096
 ADDRESS = (HOST, PORT)
 
 SERVER = socket(AF_INET, SOCK_STREAM)
-SERVER.bind(ADDRESS)
+SERVER.bind(("0.0.0.0", PORT))  # <- add the parentheses to make it a tuple
 SERVER.listen(5)
 
 print(f"[SERVER STARTED] Listening on {HOST}:{PORT}")
