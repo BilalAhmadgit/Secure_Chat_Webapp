@@ -1,53 +1,54 @@
-from socket import *
-from threading import Thread
-import secure_crypto as crypto
-from socket import socket, AF_INET, SOCK_STREAM
+from flask import Flask, request, jsonify
+from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
+import os
 
+app = Flask(__name__)
 
-client_sock = []
-public_keys = []
+# Load secret key (32 bytes)
+SECRET_KEY = os.environ.get('SECRET_KEY', '0' * 32).encode()
 
-HOST = "caboose.proxy.rlwy.net"
-PORT = 30805
-BUFFER_SIZE = 4096
-ADDRESS = (HOST, PORT)
+# In-memory list to store encrypted messages
+messages = []
 
-SERVER = socket(AF_INET, SOCK_STREAM)
-SERVER.bind(("0.0.0.0", PORT))  # <- add the parentheses to make it a tuple
-SERVER.listen(5)
+# Encrypt a message (optional utility if needed later)
+def encrypt_message(message):
+    chacha = ChaCha20Poly1305(SECRET_KEY)
+    nonce = os.urandom(12)
+    encrypted = chacha.encrypt(nonce, message.encode(), None)
+    return (nonce + encrypted).hex()
 
-print(f"[SERVER STARTED] Listening on {HOST}:{PORT}")
-print("[WAITING] Waiting for 2 clients to connect...")
+# Decrypt a message (optional utility if needed later)
+def decrypt_message(hexdata):
+    chacha = ChaCha20Poly1305(SECRET_KEY)
+    data = bytes.fromhex(hexdata)
+    nonce = data[:12]
+    ciphertext = data[12:]
+    decrypted = chacha.decrypt(nonce, ciphertext, None)
+    return decrypted.decode()
 
-# Accept clients until 2 are ready
-while len(client_sock) < 2:
-    client, addr = SERVER.accept()
-    print(f"[CONNECTED] Client {len(client_sock)+1} from {addr}")
-    client_sock.append(client)
-    pub_key = client.recv(BUFFER_SIZE)
-    public_keys.append(pub_key)
-    print(f"[KEY RECEIVED] from Client {len(client_sock)}")
+# Route to receive encrypted message from client
+@app.route('/send', methods=['POST'])
+def send_message():
+    data = request.get_json()
+    encrypted_message = data.get('message')
 
-# Exchange public keys
-client_sock[0].send(public_keys[1])
-client_sock[1].send(public_keys[0])
-print("[KEY EXCHANGE COMPLETE]")
+    if not encrypted_message:
+        return jsonify({"error": "No message provided"}), 400
 
-# Start forwarding messages
-def forward_messages(sender_idx):
-    receiver_idx = 1 - sender_idx
-    while True:
-        try:
-            msg = client_sock[sender_idx].recv(BUFFER_SIZE)
-            if not msg:
-                print(f"[DISCONNECT] Client {sender_idx + 1} disconnected.")
-                break
-            print(f"[FORWARD] Client {sender_idx + 1} → Client {receiver_idx + 1}")
-            client_sock[receiver_idx].send(msg)
-        except Exception as e:
-            print(f"[ERROR] Forwarding failed: {e}")
-            break
+    messages.append(encrypted_message)
+    return jsonify({"status": "Message received"}), 200
 
-Thread(target=forward_messages, args=(0,), daemon=True).start()
-Thread(target=forward_messages, args=(1,), daemon=True).start()
-print("[MESSAGE RELAY STARTED]")
+# Route to retrieve all encrypted messages
+@app.route('/receive', methods=['GET'])
+def receive_messages():
+    return jsonify({"messages": messages}), 200
+
+# Health check (optional but good for Railway)
+@app.route('/', methods=['GET'])
+def home():
+    return "Server is running!", 200
+
+if __name__ == '__main__':
+    # Railway automatically injects $PORT
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
