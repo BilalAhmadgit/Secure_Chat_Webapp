@@ -5,7 +5,7 @@ from threading import Thread
 import secure_crypto as crypto
 
 HOST = input('Enter host: ')
-PORT = int(input('Enter port: '))
+PORT = int(input('Enter port: ')) 
 NAME = input('Enter your name: ')
 BUFFER_SIZE = 4096
 ADDRESS = (HOST, PORT)
