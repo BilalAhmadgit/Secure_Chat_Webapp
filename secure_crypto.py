@@ -7,7 +7,7 @@ from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
 
 # Generate reusable DH parameters
 from cryptography.hazmat.primitives import serialization
-
+ 
 # Load DH parameters from file
 with open("dh_params.pem", "rb") as f:
     pem_data = f.read()
